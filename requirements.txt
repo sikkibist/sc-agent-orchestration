@@ -1,0 +1,23 @@
+# orchestration framework
+langgraph
+langchain
+
+# LLM clients
+anthropic
+openai
+ollama
+
+# bioinformatics
+scanpy
+celltypist
+anndata
+
+# evaluation / stats
+scikit-learn
+scipy
+pandas
+numpy
+
+# experiment tracking (optional but recommended)
+pyyaml
+tqdm
