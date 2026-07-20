@@ -9,6 +9,7 @@ ollama
 
 # bioinformatics
 scanpy
+leidenalg
 celltypist
 anndata
 
