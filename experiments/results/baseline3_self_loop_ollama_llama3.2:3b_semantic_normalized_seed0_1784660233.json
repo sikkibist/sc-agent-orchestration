@@ -1,0 +1,31 @@
+{
+  "condition": "baseline3_self_loop_ollama_llama3.2:3b_semantic_normalized",
+  "dataset": "pbmc68k_reduced",
+  "seed": 0,
+  "task_metrics": {
+    "accuracy": 0.48428571428571426,
+    "macro_f1": 0.2896085264869643,
+    "weighted_f1": 0.4984382044242987,
+    "ari": 0.4780530399798653,
+    "nmi": 0.6679999342906224
+  },
+  "orchestration_log": {
+    "iterations_used": 3,
+    "max_iterations": 3,
+    "escalated": false,
+    "converged": false,
+    "per_iteration_correct": [
+      false,
+      true,
+      true
+    ]
+  },
+  "cost_log": {
+    "input_tokens": 1368,
+    "output_tokens": 313,
+    "wall_clock_seconds": 315.1021053791046,
+    "estimated_cost_usd": null
+  },
+  "timestamp_utc": "2026-07-21T18:57:13.132096+00:00",
+  "notes": "self-loop, semantic normalization applied, 3/3 iterations"
+}
