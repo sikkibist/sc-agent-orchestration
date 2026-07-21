@@ -35,13 +35,24 @@ This is the recommended starting scope (not the full QC→clustering→annotatio
 
 ## 3. Datasets
 
+**CORRECTION (updated after initial drafting):** GenoTEX was originally listed
+here as the primary benchmark, but on closer inspection its task is bulk
+gene-trait association analysis (finding genes linked to a disease across
+cohort-level GEO/TCGA data), not single-cell clustering or cell-type
+annotation. It does not match this project's task and has been dropped as
+an evaluation dataset. It may still be cited in the paper's related-work
+section as an example of LLM-agent bioinformatics benchmarking, but no
+results are computed against it.
+
 | Dataset | Purpose | Notes |
 |---|---|---|
-| **GenoTEX benchmark** (arXiv:2406.15341) | Primary — use their exact task splits and gold labels so results are directly comparable to prior agent papers | Use as-is, do not modify splits |
-| **PBMC3k / PBMC68k** (10x Genomics standard) | Secondary — widely-used, well-characterized reference with known cell types | Good for sanity-checking pipeline before full runs |
-| **A Tabula Sapiens subset** (optional, if time allows) | Tests generalization to a broader/harder tissue diversity than PBMC | Only if RQ scope expands |
+| **pbmc68k_reduced** (Zheng et al. 2017, bundled with Scanpy) | **Primary evaluation dataset** — genuine FACS-sorted ground truth (`bulk_labels`), 10 real cell types, 700 cells. No download needed (`sc.datasets.pbmc68k_reduced()`). Widely used as a cell-type-annotation benchmark in the literature. | Use as-is; ground truth is independently verified (FACS), not derived from marker-gene scoring like our earlier PBMC3k workaround |
+| **PBMC3k** (10x Genomics) | Sanity-check / pipeline-debugging dataset only | Has NO ground truth labels — do not report scored results from this dataset in the paper |
 
-**Rule:** Never hand-label your own ground truth. Use only datasets with existing, published, expert-verified cell-type annotations. This keeps your evaluation objective and reviewer-defensible.
+**Rule:** All paper-reportable numbers must come from `pbmc68k_reduced` (or
+a future larger-scale dataset with independently verified ground truth,
+e.g. the full 68k-cell Zheng dataset, if pursued later). PBMC3k numbers are
+for development iteration only.
 
 ---
 

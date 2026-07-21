@@ -39,6 +39,7 @@ from src.eval.score import (
     compute_per_class_f1,
     save_result,
 )
+from src.eval.data_utils import load_dataset, preprocess_and_cluster
 
 
 # ---------------------------------------------------------------------------
@@ -48,56 +49,22 @@ from src.eval.score import (
 # ---------------------------------------------------------------------------
 
 PBMC_MARKERS = {
-    "CD4 T cell": ["IL7R", "CD3D", "CD3E"],
-    "CD8 T cell": ["CD8A", "CD3D", "CD3E"],
-    "B cell": ["MS4A1", "CD79A", "CD79B"],
-    "NK cell": ["GNLY", "NKG7", "KLRD1"],
-    "CD14+ Monocyte": ["CD14", "LYZ", "S100A8"],
-    "FCGR3A+ Monocyte": ["FCGR3A", "MS4A7"],
-    "Dendritic cell": ["FCER1A", "CST3"],
-    "Platelet": ["PPBP", "PF4"],
+    "CD14+ Monocyte": ["CD14", "LYZ", "S100A8", "S100A9"],
+    "CD19+ B": ["MS4A1", "CD79A", "CD79B", "CD19"],
+    "CD34+": ["CD34", "KIT", "PROM1"],
+    "CD56+ NK": ["NCAM1", "GNLY", "NKG7", "KLRD1"],
+    "Dendritic": ["FCER1A", "CST3", "HLA-DRA", "CD1C"],
+    "CD4+/CD25 T Reg": ["FOXP3", "IL2RA", "CD4"],
+    "CD4+/CD45RA+/CD25- Naive T": ["CD4", "CCR7", "SELL"],
+    "CD4+/CD45RO+ Memory": ["CD4", "IL7R", "PTPRC"],
+    "CD8+ Cytotoxic T": ["CD8A", "GZMB", "PRF1"],
+    "CD8+/CD45RA+ Naive Cytotoxic": ["CD8A", "CCR7", "SELL"],
 }
-
-
-def load_dataset(name: str, path: str | None = None) -> sc.AnnData:
-    if path:
-        return sc.read_h5ad(path)
-    if name == "pbmc3k":
-        # NOTE: this downloads from a 10x/Scanpy-hosted URL — requires
-        # internet access. If it fails in a restricted environment, download
-        # manually and pass --data-path instead.
-        return sc.datasets.pbmc3k()
-    raise ValueError(f"Unknown dataset '{name}'. Use --data-path for custom data.")
-
-
-def preprocess(adata: sc.AnnData, seed: int) -> sc.AnnData:
-    sc.pp.filter_cells(adata, min_genes=200)
-    sc.pp.filter_genes(adata, min_cells=3)
-
-    adata.var["mt"] = adata.var_names.str.startswith("MT-")
-    sc.pp.calculate_qc_metrics(adata, qc_vars=["mt"], inplace=True, percent_top=None)
-    adata = adata[adata.obs["pct_counts_mt"] < 20].copy()
-
-    sc.pp.normalize_total(adata, target_sum=1e4)
-    sc.pp.log1p(adata)
-    adata.raw = adata  # keep full log-normalized matrix for marker scoring
-
-    if adata.n_vars > 50:
-        n_top = min(2000, adata.n_vars)
-        sc.pp.highly_variable_genes(adata, n_top_genes=n_top)
-        adata = adata[:, adata.var.highly_variable].copy()
-    else:
-        print(
-            f"[baseline1] only {adata.n_vars} genes present — skipping HVG "
-            "selection (expected for small/test panels, not real scRNA-seq data)"
-        )
-    sc.pp.scale(adata, max_value=10)
-
-    sc.tl.pca(adata, svd_solver="arpack", random_state=seed)
-    sc.pp.neighbors(adata, n_neighbors=10, n_pcs=40, random_state=seed)
-    sc.tl.leiden(adata, resolution=0.6, random_state=seed)
-
-    return adata
+# NOTE: several of these fine-grained subtypes (e.g. Treg vs Naive T, or the
+# two CD8+ subtypes) share most of their marker genes and are genuinely hard
+# to separate from marker-gene scoring alone — this is a real, expected
+# difficulty of the task, not a bug. Worth discussing directly in your
+# failure-taxonomy section rather than trying to "fix" with better markers.
 
 
 def annotate_clusters(adata: sc.AnnData, markers: dict) -> dict[str, str]:
@@ -128,7 +95,7 @@ def annotate_clusters(adata: sc.AnnData, markers: dict) -> dict[str, str]:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", default="pbmc3k")
+    parser.add_argument("--dataset", default="pbmc68k_reduced")
     parser.add_argument("--data-path", default=None, help="path to a local .h5ad file")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
@@ -140,7 +107,7 @@ def main():
     adata = load_dataset(args.dataset, args.data_path)
 
     print(f"[baseline1] preprocessing + clustering ({adata.n_obs} cells)")
-    adata = preprocess(adata, seed=args.seed)
+    adata = preprocess_and_cluster(adata, seed=args.seed, already_normalized=(args.dataset == "pbmc68k_reduced"))
     n_clusters = adata.obs["leiden"].nunique()
     print(f"[baseline1] found {n_clusters} clusters")
 

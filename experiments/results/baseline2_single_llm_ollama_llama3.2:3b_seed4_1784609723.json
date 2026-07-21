@@ -1,0 +1,27 @@
+{
+  "condition": "baseline2_single_llm_ollama_llama3.2:3b",
+  "dataset": "pbmc68k_reduced",
+  "seed": 4,
+  "task_metrics": {
+    "accuracy": 0.05,
+    "macro_f1": 0.01497326203208556,
+    "weighted_f1": 0.08727272727272727,
+    "ari": 0.48591482034922096,
+    "nmi": 0.6717794972121577
+  },
+  "orchestration_log": {
+    "iterations_used": 1,
+    "max_iterations": 1,
+    "escalated": false,
+    "converged": true,
+    "per_iteration_correct": []
+  },
+  "cost_log": {
+    "input_tokens": 707,
+    "output_tokens": 64,
+    "wall_clock_seconds": 50.5608389377594,
+    "estimated_cost_usd": null
+  },
+  "timestamp_utc": "2026-07-21T04:55:23.357481+00:00",
+  "notes": "single LLM call, no orchestration, 0 parse errors (strict scoring)"
+}

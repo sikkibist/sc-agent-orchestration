@@ -20,37 +20,61 @@ def load_dataset(name: str, path: str | None = None) -> sc.AnnData:
     if path:
         return sc.read_h5ad(path)
     if name == "pbmc3k":
-        # requires internet access to download from the Scanpy dataset host
+        # sanity-check dataset only — has NO ground truth labels
         return sc.datasets.pbmc3k()
+    if name == "pbmc68k_reduced":
+        # REAL evaluation dataset: genuine FACS-sorted ground truth (Zheng
+        # et al. 2017), 10 cell types, 700 cells (reduced/HVG-subset
+        # version bundled with Scanpy — no download needed).
+        # .X in the raw object is log-normalized; the top-level .X is
+        # already z-scored for the tutorial's own PCA, which we don't want
+        # to reuse (we re-cluster ourselves for methodological consistency
+        # across all conditions). Restore log-normalized values, rename
+        # the label column to the standard name every scoring script
+        # expects, and let preprocess_and_cluster take it from here.
+        adata = sc.datasets.pbmc68k_reduced()
+        adata = adata.raw.to_adata()
+        adata.obs["ground_truth_cell_type"] = adata.obs["bulk_labels"].astype(str)
+        return adata
     raise ValueError(f"Unknown dataset '{name}'. Use --data-path for custom data.")
 
 
-def preprocess_and_cluster(adata: sc.AnnData, seed: int) -> sc.AnnData:
+def preprocess_and_cluster(adata: sc.AnnData, seed: int, already_normalized: bool = False) -> sc.AnnData:
     """
     Standard QC + normalize + cluster pipeline. Identical across all
     conditions — do not modify per-condition, modify here once if the
     protocol changes.
+
+    already_normalized: set True for datasets that arrive already QC'd,
+    normalized, log-transformed, and HVG-subsetted (e.g. pbmc68k_reduced).
+    Skips redundant steps but still re-runs OUR OWN scale/PCA/neighbors/
+    Leiden clustering, so clustering methodology stays consistent across
+    every dataset and condition — we never reuse a dataset's bundled
+    clusters, only its ground-truth labels.
     """
-    sc.pp.filter_cells(adata, min_genes=200)
-    sc.pp.filter_genes(adata, min_cells=3)
+    if not already_normalized:
+        sc.pp.filter_cells(adata, min_genes=200)
+        sc.pp.filter_genes(adata, min_cells=3)
 
-    adata.var["mt"] = adata.var_names.str.startswith("MT-")
-    sc.pp.calculate_qc_metrics(adata, qc_vars=["mt"], inplace=True, percent_top=None)
-    adata = adata[adata.obs["pct_counts_mt"] < 20].copy()
+        adata.var["mt"] = adata.var_names.str.startswith("MT-")
+        sc.pp.calculate_qc_metrics(adata, qc_vars=["mt"], inplace=True, percent_top=None)
+        adata = adata[adata.obs["pct_counts_mt"] < 20].copy()
 
-    sc.pp.normalize_total(adata, target_sum=1e4)
-    sc.pp.log1p(adata)
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+
     adata.raw = adata  # keep full log-normalized matrix for marker gene lookup
 
-    if adata.n_vars > 50:
-        n_top = min(2000, adata.n_vars)
-        sc.pp.highly_variable_genes(adata, n_top_genes=n_top)
-        adata = adata[:, adata.var.highly_variable].copy()
-    else:
-        print(
-            f"[data_utils] only {adata.n_vars} genes present — skipping HVG "
-            "selection (expected for small/test panels, not real scRNA-seq data)"
-        )
+    if not already_normalized:
+        if adata.n_vars > 50:
+            n_top = min(2000, adata.n_vars)
+            sc.pp.highly_variable_genes(adata, n_top_genes=n_top)
+            adata = adata[:, adata.var.highly_variable].copy()
+        else:
+            print(
+                f"[data_utils] only {adata.n_vars} genes present — skipping HVG "
+                "selection (expected for small/test panels, not real scRNA-seq data)"
+            )
 
     sc.pp.scale(adata, max_value=10)
     sc.tl.pca(adata, svd_solver="arpack", random_state=seed)

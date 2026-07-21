@@ -1,0 +1,2 @@
+condition,dataset,seed,timestamp_utc,notes,metric_accuracy,metric_macro_f1,metric_weighted_f1,metric_ari,metric_nmi,orch_iterations_used,orch_max_iterations,orch_escalated,orch_converged,cost_input_tokens,cost_output_tokens,cost_total_tokens,cost_wall_clock_seconds,cost_estimated_usd
+baseline1_classical,pbmc68k_reduced,0,2026-07-21T04:56:25.268651+00:00,"classical pipeline, no LLM, rule-based marker scoring",0.5757142857142857,0.29905558345316624,0.4548119848469989,0.5150467886260297,0.6584691409268453,1,1,False,True,0,0,0,35.816256284713745,

@@ -38,6 +38,7 @@ from src.eval.score import (
     CostLog,
     compute_task_metrics,
     compute_per_class_f1,
+    normalize_label,
     save_result,
 )
 from src.eval.data_utils import load_dataset, preprocess_and_cluster, get_cluster_marker_genes
@@ -100,8 +101,9 @@ PROVIDERS = {
 # ---------------------------------------------------------------------------
 
 CANDIDATE_LABELS = [
-    "CD4 T cell", "CD8 T cell", "B cell", "NK cell",
-    "CD14+ Monocyte", "FCGR3A+ Monocyte", "Dendritic cell", "Platelet",
+    "CD14+ Monocyte", "CD19+ B", "CD34+", "CD56+ NK", "Dendritic",
+    "CD4+/CD25 T Reg", "CD4+/CD45RA+/CD25- Naive T", "CD4+/CD45RO+ Memory",
+    "CD8+ Cytotoxic T", "CD8+/CD45RA+ Naive Cytotoxic",
 ]
 
 
@@ -174,7 +176,7 @@ def parse_response(text: str, expected_clusters: list[str]) -> dict[str, str]:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", default="pbmc3k")
+    parser.add_argument("--dataset", default="pbmc68k_reduced")
     parser.add_argument("--data-path", default=None)
     parser.add_argument("--seed", type=int, default=0, help="clustering seed — keep fixed at 0 across trials if using the PBMC3k REFERENCE_LABELS sanity-check mapping, which is tied to seed=0's specific clustering")
     parser.add_argument("--trial", type=int, default=0, help="repeat index for this run, distinct from --seed; use this to get multiple LLM samples against IDENTICAL clusters")
@@ -197,7 +199,7 @@ def main():
     adata = load_dataset(args.dataset, args.data_path)
 
     print(f"[baseline2] preprocessing + clustering ({adata.n_obs} cells)")
-    adata = preprocess_and_cluster(adata, seed=args.seed)
+    adata = preprocess_and_cluster(adata, seed=args.seed, already_normalized=(args.dataset == "pbmc68k_reduced"))
     n_clusters = adata.obs["leiden"].nunique()
     print(f"[baseline2] found {n_clusters} clusters")
 
@@ -239,8 +241,19 @@ def main():
 
         metrics = compute_task_metrics(y_true, y_pred)
         per_class = compute_per_class_f1(y_true, y_pred)
-        print("[baseline2] task metrics:", metrics)
-        print("[baseline2] per-class F1:", per_class)
+        print("[baseline2] task metrics (strict, exact-match):", metrics)
+        print("[baseline2] per-class F1 (strict):", per_class)
+
+        # Secondary metric: semantically-normalized scoring (see score.py's
+        # CANONICAL_SYNONYMS docstring for methodology/provenance notes).
+        # This separates "did the model understand the biology" from "did
+        # it comply with the exact output format" — report BOTH in the
+        # paper, never just the normalized one alone.
+        y_pred_normalized = [normalize_label(p, CANDIDATE_LABELS) for p in y_pred]
+        metrics_normalized = compute_task_metrics(y_true, y_pred_normalized)
+        per_class_normalized = compute_per_class_f1(y_true, y_pred_normalized)
+        print("[baseline2] task metrics (semantically normalized):", metrics_normalized)
+        print("[baseline2] per-class F1 (normalized):", per_class_normalized)
 
         result = RunResult(
             condition=f"baseline2_single_llm_{args.provider}_{args.model}",
@@ -256,10 +269,29 @@ def main():
                 wall_clock_seconds=total_elapsed,
                 estimated_cost_usd=estimated_cost,
             ),
-            notes=f"single LLM call, no orchestration, {n_parse_errors} parse errors",
+            notes=f"single LLM call, no orchestration, {n_parse_errors} parse errors (strict scoring)",
         )
         path = save_result(result)
-        print(f"[baseline2] saved result to {path}")
+        print(f"[baseline2] saved strict result to {path}")
+
+        result_normalized = RunResult(
+            condition=f"baseline2_single_llm_{args.provider}_{args.model}_semantic_normalized",
+            dataset=args.dataset,
+            seed=args.trial,
+            task_metrics=metrics_normalized,
+            orchestration_log=OrchestrationLog(
+                iterations_used=1, max_iterations=1, converged=(n_parse_errors == 0)
+            ),
+            cost_log=CostLog(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                wall_clock_seconds=total_elapsed,
+                estimated_cost_usd=estimated_cost,
+            ),
+            notes=f"same run, scored with semantic label normalization applied ({n_parse_errors} raw parse errors)",
+        )
+        path_normalized = save_result(result_normalized)
+        print(f"[baseline2] saved normalized result to {path_normalized}")
     else:
         print(
             "[baseline2] WARNING: no 'ground_truth_cell_type' column found — "

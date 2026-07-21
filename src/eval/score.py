@@ -67,6 +67,55 @@ def compute_per_class_f1(y_true: list[str], y_pred: list[str]) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Semantic label normalization (secondary metric, NOT a replacement for
+# strict exact-match scoring).
+#
+# METHODOLOGICAL NOTE FOR THE PAPER: this synonym mapping was derived by
+# manually inspecting off-list labels produced by llama3.2:3b during a
+# pilot batch of 5 Baseline 2 trials on pbmc68k_reduced (seed=0). It is
+# FROZEN as of that inspection — do not add mappings after seeing later
+# results, or this becomes post-hoc metric shopping and undermines the
+# comparison. If a genuinely new off-list term appears in a later run that
+# isn't covered here, leave it unmapped (scored as wrong) and note it in
+# the failure taxonomy, rather than extending this dict retroactively.
+# Disclose this frozen-after-pilot provenance explicitly in your methods.
+#
+# Ambiguous terms (e.g. "T cell", "Naive T cell", "NKT cell" — multiple
+# plausible candidate matches, no confident single mapping) are
+# deliberately left OUT and will continue to score as incorrect under
+# normalization too. Only confident, unambiguous synonyms are mapped.
+# ---------------------------------------------------------------------------
+
+CANONICAL_SYNONYMS = {
+    "dendritic cell": "Dendritic",
+    "plasmacytoid dendritic": "Dendritic",
+    "plasmacytoid dendritic cell": "Dendritic",
+    "nk cell": "CD56+ NK",
+    "nk": "CD56+ NK",
+    "monocyte": "CD14+ Monocyte",
+    "macrophage": "CD14+ Monocyte",
+    "b cell": "CD19+ B",
+    "plasma cell": "CD19+ B",  # this benchmark's taxonomy doesn't separate plasma cells from B cells
+    "t regulatory cell": "CD4+/CD25 T Reg",
+    "regulatory t cell": "CD4+/CD25 T Reg",
+    "treg": "CD4+/CD25 T Reg",
+    "cytotoxic t cell": "CD8+ Cytotoxic T",
+}
+
+
+def normalize_label(label: str, candidate_labels: list[str]) -> str:
+    """
+    Map a free-text label to its canonical candidate-list form if a
+    confident synonym exists. Returns the label UNCHANGED if it's already
+    exact, or if no confident mapping exists (ambiguous terms stay
+    unmapped and will still score as incorrect — this is intentional).
+    """
+    if label in candidate_labels:
+        return label
+    return CANONICAL_SYNONYMS.get(label.strip().lower(), label)
+
+
+# ---------------------------------------------------------------------------
 # Orchestration-specific metrics (protocol Section 5.2) — fill these in from
 # your orchestrator's logs. For Baseline 1/2 these are trivially 0/1/None.
 # ---------------------------------------------------------------------------
