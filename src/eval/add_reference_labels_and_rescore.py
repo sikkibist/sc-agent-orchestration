@@ -3,20 +3,25 @@ add_reference_labels_and_rescore.py
 
 Attaches canonical PBMC3k reference cell-type labels (standard, widely-
 published cluster identities from the Seurat/Scanpy PBMC3k tutorials,
-matched here to the specific clustering your pipeline produced) and
-re-scores an already-annotated h5ad from Baseline 1 or Baseline 2.
+matched here to the specific clustering your pipeline produced at seed=0)
+and re-scores an already-annotated h5ad from Baseline 1 or Baseline 2.
 
 IMPORTANT CAVEAT: this reference mapping is tied to the exact clustering
-in your run (seed=0, resolution=0.6 from data_utils.py) — it is a sanity-
+produced by data_utils.preprocess_and_cluster with seed=0. It is a sanity-
 check convenience, not an independent expert-verified ground truth. Do
 NOT use these numbers in your paper. Use them to iterate quickly while
 you get GenoTEX access. Your real, citable numbers must come from a
 dataset with genuine independent ground truth (GenoTEX).
 
-Usage:
+Usage (single run):
     python src/eval/add_reference_labels_and_rescore.py \
-        --h5ad experiments/results/baseline2_pbmc3k_seed0_annotated.h5ad \
-        --condition-name baseline2_pbmc3k_sanitycheck
+        --h5ad experiments/results/baseline2_pbmc3k_trial0_annotated.h5ad \
+        --condition-name baseline2_llama3.2-3b \
+        --trial 0
+
+This appends one row to experiments/results/baseline2_llama3.2-3b.csv.
+Run it once per trial, then use aggregate_results.py to get mean +/- std
+across all trials.
 """
 
 import argparse
@@ -26,12 +31,20 @@ from pathlib import Path
 import scanpy as sc
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from src.eval.score import compute_task_metrics, compute_per_class_f1
+from src.eval.score import (
+    compute_task_metrics,
+    compute_per_class_f1,
+    RunResult,
+    OrchestrationLog,
+    CostLog,
+    save_result,
+)
 
 
-# Canonical identities for this exact clustering (seed=0, resolution=0.6,
-# data_utils.preprocess_and_cluster). Re-derive this mapping if you change
-# the clustering parameters — cluster IDs and boundaries will shift.
+# Canonical identities for the seed=0 clustering from data_utils.py.
+# Re-derive this mapping if you change clustering parameters — cluster IDs
+# and boundaries will shift. Do NOT reuse this for a different seed's
+# clustering without re-deriving it (cluster ids won't mean the same thing).
 REFERENCE_LABELS = {
     "0": "CD4 T cell",       # ribosomal genes + CD3D
     "1": "CD14+ Monocyte",   # S100A9, LYZ, S100A8, FCN1
@@ -48,6 +61,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--h5ad", required=True)
     parser.add_argument("--condition-name", default="sanity_check")
+    parser.add_argument("--trial", type=int, default=0, help="trial/repeat index, saved as the 'seed' column for aggregation")
+    parser.add_argument("--dataset", default="pbmc3k")
     args = parser.parse_args()
 
     adata = sc.read_h5ad(args.h5ad)
@@ -56,10 +71,11 @@ def main():
     if missing:
         print(
             f"WARNING: clusters {missing} not in REFERENCE_LABELS — this "
-            "usually means your clustering produced a different number of "
-            "clusters than the reference mapping expects (check seed/"
-            "resolution match data_utils.py). Update REFERENCE_LABELS above."
+            "usually means your clustering used a different seed/resolution "
+            "than seed=0 (check you passed --seed 0 to the baseline script). "
+            "Skipping save — fix clustering seed and re-run."
         )
+        return
 
     adata.obs["ground_truth_cell_type"] = (
         adata.obs["leiden"].astype(str).map(REFERENCE_LABELS)
@@ -71,9 +87,21 @@ def main():
     metrics = compute_task_metrics(y_true, y_pred)
     per_class = compute_per_class_f1(y_true, y_pred)
 
-    print(f"\n=== {args.condition_name} (SANITY CHECK ONLY — not paper numbers) ===")
+    print(f"\n=== {args.condition_name} trial {args.trial} (SANITY CHECK ONLY — not paper numbers) ===")
     print("Task metrics:", metrics)
     print("Per-class F1:", per_class)
+
+    result = RunResult(
+        condition=args.condition_name,
+        dataset=args.dataset,
+        seed=args.trial,
+        task_metrics=metrics,
+        orchestration_log=OrchestrationLog(iterations_used=1, max_iterations=1),
+        cost_log=CostLog(),  # token/cost info lives in the baseline script's own save; this is a rescoring pass
+        notes="sanity-check scoring against PBMC3k reference labels, NOT paper-grade ground truth",
+    )
+    path = save_result(result)
+    print(f"Saved to {path}")
     print(
         "\nReminder: this reference mapping is derived from the same "
         "canonical marker-gene logic as Baseline 1's own method, so it is "
@@ -83,3 +111,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

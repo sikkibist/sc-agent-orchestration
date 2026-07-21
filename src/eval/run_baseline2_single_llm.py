@@ -43,10 +43,17 @@ from src.eval.score import (
 from src.eval.data_utils import load_dataset, preprocess_and_cluster, get_cluster_marker_genes
 
 
+# ---------------------------------------------------------------------------
+# LLM call abstraction — supports Anthropic, OpenAI, or local Ollama.
+# Kept deliberately thin: one function per provider, all returning the same
+# (text, input_tokens, output_tokens) shape so scoring code doesn't care
+# which backend was used.
+# ---------------------------------------------------------------------------
+
 def call_anthropic(prompt: str, model: str) -> tuple[str, int, int]:
     import anthropic
 
-    client = anthropic.Anthropic()
+    client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
     response = client.messages.create(
         model=model,
         max_tokens=1024,
@@ -59,7 +66,7 @@ def call_anthropic(prompt: str, model: str) -> tuple[str, int, int]:
 def call_openai(prompt: str, model: str) -> tuple[str, int, int]:
     import openai
 
-    client = openai.OpenAI()
+    client = openai.OpenAI()  # reads OPENAI_API_KEY from env
     response = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
@@ -74,6 +81,8 @@ def call_ollama(prompt: str, model: str) -> tuple[str, int, int]:
 
     response = ollama.chat(model=model, messages=[{"role": "user", "content": prompt}])
     text = response["message"]["content"]
+    # Ollama reports eval counts, not identical semantics to token billing,
+    # but useful as a proxy for compute cost comparisons.
     input_tokens = response.get("prompt_eval_count", 0)
     output_tokens = response.get("eval_count", 0)
     return text, input_tokens, output_tokens
@@ -85,6 +94,10 @@ PROVIDERS = {
     "ollama": call_ollama,
 }
 
+
+# ---------------------------------------------------------------------------
+# Prompt construction + response parsing
+# ---------------------------------------------------------------------------
 
 CANDIDATE_LABELS = [
     "CD4 T cell", "CD8 T cell", "B cell", "NK cell",
@@ -121,6 +134,11 @@ Example format: {{"0": "CD4 T cell", "1": "B cell"}}
 
 
 def parse_response(text: str, expected_clusters: list[str]) -> dict[str, str]:
+    """Robust-ish JSON parsing: strips markdown fences if the model added
+    them despite instructions, and validates all expected clusters got a
+    label (fills 'PARSE_ERROR' for any that are missing, rather than
+    crashing — a missing/malformed response is itself a data point about
+    single-LLM reliability, not something to silently hide)."""
     cleaned = text.strip()
     if cleaned.startswith("```"):
         cleaned = cleaned.split("```")[1]
@@ -150,15 +168,26 @@ def parse_response(text: str, expected_clusters: list[str]) -> dict[str, str]:
     return result
 
 
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", default="pbmc3k")
     parser.add_argument("--data-path", default=None)
-    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--seed", type=int, default=0, help="clustering seed — keep fixed at 0 across trials if using the PBMC3k REFERENCE_LABELS sanity-check mapping, which is tied to seed=0's specific clustering")
+    parser.add_argument("--trial", type=int, default=0, help="repeat index for this run, distinct from --seed; use this to get multiple LLM samples against IDENTICAL clusters")
     parser.add_argument("--provider", choices=list(PROVIDERS.keys()), default="ollama")
     parser.add_argument("--model", default="llama3.2:3b")
-    parser.add_argument("--input-price", type=float, default=None)
-    parser.add_argument("--output-price", type=float, default=None)
+    parser.add_argument(
+        "--input-price", type=float, default=None,
+        help="$ per million input tokens, for cost logging — check current pricing, don't assume",
+    )
+    parser.add_argument(
+        "--output-price", type=float, default=None,
+        help="$ per million output tokens, for cost logging",
+    )
     args = parser.parse_args()
 
     np.random.seed(args.seed)
@@ -216,7 +245,7 @@ def main():
         result = RunResult(
             condition=f"baseline2_single_llm_{args.provider}_{args.model}",
             dataset=args.dataset,
-            seed=args.seed,
+            seed=args.trial,
             task_metrics=metrics,
             orchestration_log=OrchestrationLog(
                 iterations_used=1, max_iterations=1, converged=(n_parse_errors == 0)
@@ -246,7 +275,7 @@ def main():
     out_path = (
         Path(__file__).resolve().parents[2]
         / "experiments" / "results"
-        / f"baseline2_{args.dataset}_seed{args.seed}_annotated.h5ad"
+        / f"baseline2_{args.dataset}_trial{args.trial}_annotated.h5ad"
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     adata.write_h5ad(out_path)
