@@ -59,7 +59,60 @@ Cytotoxic variants) — genuinely overlapping marker profiles, not a bug.
 ---
 
 ## Baseline 3 — Single LLM + self-loop
-*(not yet run)*
+Dataset: pbmc68k_reduced, seed=0 (clustering fixed), 5 trials, max_iterations=3
+
+**Strict (exact-match) scoring:**
+
+| metric | mean | std |
+|---|---|---|
+| accuracy | 0.165 | 0.169 |
+| macro_f1 | 0.075 | 0.084 |
+| weighted_f1 | 0.162 | 0.162 |
+| ari | 0.472 | 0.027 |
+| nmi | 0.656 | 0.034 |
+
+**Semantically-normalized scoring:**
+
+| metric | mean | std |
+|---|---|---|
+| accuracy | 0.227 | 0.209 |
+| macro_f1 | 0.113 | 0.111 |
+| weighted_f1 | 0.232 | 0.214 |
+| ari | 0.472 | 0.027 |
+| nmi | 0.656 | 0.034 |
+
+**Comparison to Baseline 2:** self-loop improves mean strict accuracy
+(0.054 → 0.165) and normalized accuracy (0.151 → 0.227), but at ~5x the
+token cost (~700 → ~1300-1400 tokens/trial) and ~3x the wall-clock time
+(~50-160s → 200-315s per trial). Gains are real but small relative to the
+gap with Baseline 1 (0.576) and highly inconsistent across trials — std
+is nearly as large as the mean for strict accuracy.
+
+**Three failure mechanisms observed directly in trial logs (useful for
+the paper's failure-taxonomy section, Section 5.5):**
+
+1. **Self-check works well** — trial 0: self-check turned 0/8 clusters
+   correct into a mapping scoring 0.44 accuracy in a single pass. The
+   model can genuinely recognize and fix its own vocabulary violations.
+2. **Self-check does nothing** — trial 4: three consecutive iterations
+   produced *identical* output. The model was asked to check its own
+   labels against the exact candidate list and did not recognize
+   anything wrong, despite 6/8 labels being off-list. Self-verification
+   is not reliable even when directly prompted.
+3. **Self-check introduces a new failure class** — trial 1: the self-check
+   response embedded the literal string `"ALL_VALID"` as a JSON *value*
+   for one cluster (`{"6": "ALL_VALID"}`) instead of following the
+   instruction to respond with `ALL_VALID` alone when everything's
+   correct. This created an off-list label that hadn't existed in the
+   previous iteration — self-checking can add errors, not just remove
+   them.
+
+**Takeaway for the full orchestrator design:** blind self-looping (same
+model checking its own work with a generic prompt) gives inconsistent,
+sometimes-negative returns at meaningfully higher cost. This motivates a
+smarter, decomposed evaluator — e.g. one that checks specific structural
+properties (valid JSON, exact label match) programmatically rather than
+asking the LLM to self-diagnose in natural language.
 
 ---
 
