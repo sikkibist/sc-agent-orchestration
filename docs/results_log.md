@@ -117,7 +117,46 @@ asking the LLM to self-diagnose in natural language.
 ---
 
 ## Orchestrated system (specialists + evaluator)
-*(not yet run)*
+Dataset: pbmc68k_reduced, seed=0 (clustering fixed), 5 trials
+Classical specialist (Baseline 1 logic) + LLM specialist (Baseline 2 logic),
+reconciled by evaluator.py: programmatic agreement check, constrained
+2-choice arbitration only for disagreements, fallback to classical if
+arbitration response is invalid.
+
+| metric | mean | std |
+|---|---|---|
+| accuracy | 0.529 | 0.069 |
+| macro_f1 | 0.249 | 0.070 |
+| weighted_f1 | 0.432 | 0.033 |
+| ari | 0.502 | 0.030 |
+| nmi | 0.647 | 0.021 |
+
+**Comparison to all conditions:** orchestrator (0.529) massively outperforms
+Baseline 2 (0.054-0.151) and Baseline 3 (0.165-0.227) — clear evidence that
+decomposition + programmatic evaluation beats blind self-looping. But it
+does NOT clearly beat Baseline 1 alone (0.576).
+
+**Mechanism, visible directly in per-trial logs — this is the key finding:**
+- 3/5 trials: arbitration produced no valid pick for any disagreement
+  (fell back to classical every time) → result exactly equals Baseline 1
+  (0.576). Fallback logic works exactly as designed.
+- 2/5 trials: arbitration DID produce format-valid picks (0 fallbacks) —
+  but accuracy dropped BELOW Baseline 1 (0.424, 0.491). The arbitrator
+  followed the constrained 2-choice format correctly but chose the wrong
+  content in these cases, overriding a correct classical answer with an
+  incorrect LLM one.
+
+**Conclusion:** format compliance and correctness are separate axes —
+solving the compliance problem (which the constrained arbitration prompt
+clearly does, unlike Baseline 2/3's open-ended prompts) doesn't
+automatically solve the correctness problem. This is strong motivation for
+the deferred ablation (confidence-weighted tie-break instead of always
+trusting arbitration's pick) — worth running as a follow-up condition.
+
+**Timing anomaly:** trial 3 took 2842s vs. ~230-250s for all other trials,
+despite near-identical token counts (1402 in / 158 out vs. similar for
+others) — likely a local system hiccup (sleep/thermal throttle), not
+systematic. Noted for disclosure, not investigated further.
 
 ---
 
