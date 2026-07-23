@@ -161,4 +161,44 @@ systematic. Noted for disclosure, not investigated further.
 ---
 
 ## Orchestrated system, small model variant
-*(not yet run)*
+Dataset: pbmc68k_reduced, seed=0, 5 trials each. Tested as a model-size
+sweep (no large/frontier model was ever run — no API budget by design —
+so this compares llama3.2:3b against smaller models, not small-vs-large).
+
+| Model | Accuracy | Notes |
+|---|---|---|
+| llama3.2:3b | 0.529 ± 0.069 | baseline orchestrator run |
+| llama3.2:1b | 0.576 ± 0.000 | **100% fallback** every trial — see below |
+| qwen2.5:1.5b | 0.382 ± 0.148 (BEFORE evaluator fix) | see bug below |
+
+**Critical non-obvious finding: llama3.2:1b's apparent parity with Baseline
+1 is a degenerate case, not genuine competence.** Every single trial log
+shows `8/8 disagreed, 8/8 fell back to classical` — the 1b model never
+once produced a valid arbitration pick, so the orchestrator's fallback
+safety net fired 100% of the time, making it mathematically identical to
+running Baseline 1 alone. Zero variance across trials confirms this. The
+model contributed nothing; it simply failed in a way the safety net
+neutralizes perfectly. **Do not report this as "smaller models work
+better" without this caveat** — the real lesson is about failure MODE,
+not model size.
+
+**Bug found and fixed via this run:** qwen2.5:1.5b's LLM specialist
+frequently invented garbage labels (e.g. "Basophils/NK Cells", "Mono-ADCC",
+"IRF8+ Memory T") that aren't real candidate labels. The evaluator's
+arbitration check only verified the response exactly matched one of the
+two OFFERED strings — it never checked that the offered LLM option was
+itself a real label. So when qwen2.5 "validly" echoed the garbage option
+back verbatim, the evaluator accepted it as a legitimate arbitration
+result, guaranteeing that cluster scores 0 (can never match real ground
+truth). Fixed in evaluator.py: `parse_arbitration_response` now also
+requires the chosen label to be in the actual candidate label list, not
+just equal to one of the two offered strings. Verified with a unit test
+reproducing the exact failure. **qwen2.5:1.5b needs to be re-run with the
+fix — the 0.382 number above is stale/invalid and should not be used.**
+
+**Takeaway for the paper:** this is a stronger, more general point than
+either baseline comparison alone — an orchestrator's fallback/safety logic
+must validate against ground truth structure (the real label set),
+not just internal consistency (matching one of its own offered options).
+Internal consistency checks can be satisfied by two mutually "valid"
+wrong answers.

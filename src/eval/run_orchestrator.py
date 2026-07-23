@@ -96,7 +96,7 @@ def main():
     # --- Evaluator: programmatic agreement check + constrained arbitration ---
     print("[orchestrator] running evaluator")
     eval_result = reconcile(
-        classical_labels, llm_labels_normalized, cluster_markers, call_fn, args.model
+        classical_labels, llm_labels_normalized, cluster_markers, call_fn, args.model, CANDIDATE_LABELS
     )
     total_input_tokens += eval_result["arbitration_input_tokens"]
     total_output_tokens += eval_result["arbitration_output_tokens"]

@@ -72,12 +72,24 @@ No preamble, no explanation, no markdown code fences — just the raw JSON.
 def parse_arbitration_response(
     text: str,
     disagreements: dict[str, tuple[str, str]],
+    candidate_labels: list[str],
 ) -> dict[str, str]:
     """
-    Parses the arbitration response. For any cluster whose chosen label
-    isn't exactly one of the two offered options, falls back to the
-    classical specialist's label (see module docstring — this is the
-    simple fallback, flagged for a future ablation).
+    Parses the arbitration response. Falls back to the classical
+    specialist's label (module docstring — simple fallback, flagged for a
+    future ablation) if EITHER of these is true:
+      (a) the chosen label isn't exactly one of the two offered options, or
+      (b) the chosen label — even if it WAS one of the two offered options —
+          isn't actually in the real candidate label list.
+
+    (b) matters because the "LLM specialist" option offered for arbitration
+    can itself be an off-list/garbage string (e.g. the LLM specialist
+    invented "Basophils/NK Cells" instead of a real label). Without this
+    check, arbitration could "validly" echo back garbage verbatim and the
+    evaluator would accept it — discovered empirically when qwen2.5:1.5b
+    did exactly this and tanked accuracy. Classical labels are always in
+    candidate_labels by construction, so this only ever filters bad LLM
+    options, never penalizes a correct classical fallback.
     """
     cleaned = text.strip()
     if cleaned.startswith("```"):
@@ -95,7 +107,7 @@ def parse_arbitration_response(
     fallback_count = 0
     for cid, (classical_label, llm_label) in disagreements.items():
         chosen = parsed.get(cid)
-        if chosen in (classical_label, llm_label):
+        if chosen in (classical_label, llm_label) and chosen in candidate_labels:
             result[cid] = chosen
         else:
             result[cid] = classical_label  # fallback: classical wins
@@ -109,10 +121,13 @@ def reconcile(
     cluster_markers: dict[str, list[str]],
     call_fn,
     model: str,
+    candidate_labels: list[str],
 ) -> dict:
     """
     Full evaluator pipeline: check agreement, arbitrate disagreements in
-    one batched call, apply fallback for anything still unresolved.
+    one batched call, apply fallback for anything still unresolved
+    (including cases where arbitration "validly" echoed back an off-list
+    LLM-specialist option — see parse_arbitration_response docstring).
 
     Returns a dict with: final_labels, n_agree, n_disagree, n_fallback,
     arbitration_input_tokens, arbitration_output_tokens, escalated (bool).
@@ -133,7 +148,7 @@ def reconcile(
         response_text, in_tok, out_tok = call_fn(prompt, model)
         arb_input_tokens += in_tok
         arb_output_tokens += out_tok
-        arbitrated, n_fallback = parse_arbitration_response(response_text, disagreements)
+        arbitrated, n_fallback = parse_arbitration_response(response_text, disagreements, candidate_labels)
         final_labels.update(arbitrated)
 
     return {
