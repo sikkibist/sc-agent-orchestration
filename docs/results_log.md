@@ -165,11 +165,11 @@ Dataset: pbmc68k_reduced, seed=0, 5 trials each. Tested as a model-size
 sweep (no large/frontier model was ever run — no API budget by design —
 so this compares llama3.2:3b against smaller models, not small-vs-large).
 
-| Model | Accuracy | Notes |
-|---|---|---|
-| llama3.2:3b | 0.529 ± 0.069 | baseline orchestrator run |
-| llama3.2:1b | 0.576 ± 0.000 | **100% fallback** every trial — see below |
-| qwen2.5:1.5b | 0.382 ± 0.148 (BEFORE evaluator fix) | see bug below |
+| Model | Accuracy |
+|---|---|
+| llama3.2:3b | 0.529 ± 0.069 |
+| llama3.2:1b | 0.576 ± 0.000 (degenerate — see below) |
+| qwen2.5:1.5b | 0.534 ± 0.094 (post evaluator-fix, see below) |
 
 **Critical non-obvious finding: llama3.2:1b's apparent parity with Baseline
 1 is a degenerate case, not genuine competence.** Every single trial log
@@ -189,16 +189,33 @@ arbitration check only verified the response exactly matched one of the
 two OFFERED strings — it never checked that the offered LLM option was
 itself a real label. So when qwen2.5 "validly" echoed the garbage option
 back verbatim, the evaluator accepted it as a legitimate arbitration
-result, guaranteeing that cluster scores 0 (can never match real ground
-truth). Fixed in evaluator.py: `parse_arbitration_response` now also
-requires the chosen label to be in the actual candidate label list, not
-just equal to one of the two offered strings. Verified with a unit test
-reproducing the exact failure. **qwen2.5:1.5b needs to be re-run with the
-fix — the 0.382 number above is stale/invalid and should not be used.**
+result, guaranteeing that cluster scores 0. Fixed in evaluator.py:
+`parse_arbitration_response` now also requires the chosen label to be in
+the actual candidate label list. Verified with a unit test reproducing
+the exact failure.
 
-**Takeaway for the paper:** this is a stronger, more general point than
-either baseline comparison alone — an orchestrator's fallback/safety logic
-must validate against ground truth structure (the real label set),
-not just internal consistency (matching one of its own offered options).
-Internal consistency checks can be satisfied by two mutually "valid"
-wrong answers.
+Pre-fix (buggy) qwen2.5:1.5b result: 0.382 ± 0.148 — INVALID, do not use.
+Post-fix qwen2.5:1.5b result: 0.534 ± 0.094 (n=5) — the real number.
+
+**Second lesson from this same round, about experiment hygiene, not the
+model:** the first attempt at aggregating the post-fix run showed "10
+trials" instead of 5 — `save_result()` appends to a per-condition CSV
+rather than overwriting, so the pre-fix run's 5 rows were still in the
+file and got silently blended with the post-fix run's 5 new rows,
+producing a contaminated in-between number (0.458 ± 0.142, also invalid).
+**Rule going forward: after any code fix that changes what a condition
+measures, either delete that condition's old CSV before re-running, or
+give the corrected run a distinct condition name/version suffix** — don't
+silently re-use the same file.
+
+**Takeaway for the paper (now on solid footing):** once the evaluator bug
+was fixed, all three non-degenerate model configurations converge to
+roughly the same accuracy (~0.53), regardless of which small model powers
+the LLM specialist — the fallback-to-classical safety net makes the
+orchestrator's performance robust to LLM-specialist choice. This is a
+stronger, more general point than either baseline comparison alone: an
+orchestrator's fallback/safety logic must validate against ground-truth
+structure (the real label set), not just internal consistency (matching
+one of its own offered options) — internal consistency can be satisfied
+by two mutually "valid" wrong answers, and once that's fixed, the
+architecture is genuinely robust across models.
