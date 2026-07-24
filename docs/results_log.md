@@ -160,7 +160,74 @@ systematic. Noted for disclosure, not investigated further.
 
 ---
 
-## Orchestrated system, small model variant
+## Confidence-weighted tie-break ablation
+Dataset: pbmc68k_reduced, seed=0, 5 trials, llama3.2:3b.
+Deferred from the original orchestrator design discussion: instead of a
+second arbitration LLM call, each specialist reports confidence in its
+ORIGINAL call — classical uses its marker-score margin (top vs runner-up),
+LLM self-reports 0-100 confidence in the same JSON response. On
+disagreement, LLM only overrides if classical is below-median confidence
+AND LLM is >=70 AND the label is a genuine candidate label (validity gate
+carried over from the evaluator.py fix). Only 1 LLM call per trial instead
+of up to 2.
+
+| metric | mean | std |
+|---|---|---|
+| accuracy | 0.545 | 0.097 |
+| macro_f1 | 0.279 | 0.070 |
+| weighted_f1 | 0.474 | 0.075 |
+| ari | 0.501 | 0.031 |
+| nmi | 0.628 | 0.039 |
+
+**Best single result across the entire project:** trial 1 hit 0.636
+accuracy (beats Baseline 1's 0.576 outright) — two low-confidence
+classical clusters were correctly overridden by confident, correct LLM
+labels (CD14+ Monocyte F1 went from 0 to 0.73).
+
+**But also the clearest evidence of a NEW failure mode, distinct from the
+arbitration version's bug:** trial 2's LLM confidently (88/100) mislabeled
+a low-margin cluster, combining with a correct call elsewhere to cause
+over-prediction of that class (CD56+ NK F1 dropped from Baseline 1's 0.89
+to 0.24). The validity gate correctly rejected invalid labels in the same
+run (`invalid_llm_high_conf=3` in trial 1) — this isn't the same bug as
+before. This is pure miscalibration: **the LLM's self-reported confidence
+number doesn't reliably track whether it's actually right.**
+
+**Calibration finding worth its own callout:** classical's confidence
+signal (marker-score margin) IS empirically well-calibrated — the
+clusters it flags as low-margin are consistently the ones that turn out
+hardest across every condition tested in this project. The LLM's
+self-reported confidence is not equally trustworthy — same stated
+confidence level (e.g. ~85-90) sometimes preceded a correct override,
+sometimes an incorrect one, with no obvious distinguishing signal.
+
+---
+
+## Full comparison, all conditions
+
+| Condition | Accuracy |
+|---|---|
+| Baseline 1 (classical) | 0.576 |
+| Baseline 2 (LLM, strict) | 0.054 ± 0.096 |
+| Baseline 2 (LLM, normalized) | 0.151 ± 0.109 |
+| Baseline 3 (self-loop, strict) | 0.165 ± 0.169 |
+| Baseline 3 (self-loop, normalized) | 0.227 ± 0.209 |
+| Orchestrator (arbitration), llama3.2:3b | 0.529 ± 0.069 |
+| Orchestrator (arbitration), llama3.2:1b | 0.576 ± 0.000 (degenerate) |
+| Orchestrator (arbitration), qwen2.5:1.5b | 0.534 ± 0.094 |
+| Orchestrator (confidence tie-break), llama3.2:3b | 0.545 ± 0.097 |
+
+**Overall project narrative:** decomposition + programmatic validation
+(any orchestrator variant) dramatically outperforms blind LLM use
+(Baseline 2/3). Among orchestrator variants, none robustly and clearly
+beats the free classical baseline alone on average — but the confidence
+tie-break variant shows the clearest evidence of genuine, mechanistically
+understandable upside (trial 1) alongside a well-characterized failure
+mode (trial 2), at the lowest cost of any LLM-involving condition. This is
+a more informative and honest conclusion than either "orchestration wins"
+or "orchestration doesn't help" — the mechanism matters, and confidence
+calibration (not raw LLM capability) is the open problem worth pursuing
+next.
 Dataset: pbmc68k_reduced, seed=0, 5 trials each. Tested as a model-size
 sweep (no large/frontier model was ever run — no API budget by design —
 so this compares llama3.2:3b against smaller models, not small-vs-large).

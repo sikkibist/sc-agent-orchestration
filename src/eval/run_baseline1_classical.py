@@ -67,6 +67,34 @@ PBMC_MARKERS = {
 # failure-taxonomy section rather than trying to "fix" with better markers.
 
 
+def annotate_clusters_with_confidence(adata: sc.AnnData, markers: dict) -> dict[str, tuple[str, float]]:
+    """
+    Same marker-gene-scoring logic as annotate_clusters, but also returns a
+    confidence signal per cluster: the margin between the top-scoring and
+    runner-up cell type's mean score. Used by the confidence-weighted
+    tie-break ablation (evaluator alternative to arbitration).
+    """
+    raw = adata.raw.to_adata()
+
+    for cell_type, genes in markers.items():
+        present = [g for g in genes if g in raw.var_names]
+        if not present:
+            continue
+        sc.tl.score_genes(raw, gene_list=present, score_name=f"score_{cell_type}")
+
+    score_cols = [f"score_{ct}" for ct in markers if f"score_{ct}" in raw.obs.columns]
+
+    result = {}
+    for cluster_id in adata.obs["leiden"].cat.categories:
+        mask = adata.obs["leiden"] == cluster_id
+        mean_scores = raw.obs.loc[mask, score_cols].mean().sort_values(ascending=False)
+        best_label = mean_scores.index[0].replace("score_", "")
+        margin = float(mean_scores.iloc[0] - mean_scores.iloc[1]) if len(mean_scores) > 1 else float(mean_scores.iloc[0])
+        result[cluster_id] = (best_label, margin)
+
+    return result
+
+
 def annotate_clusters(adata: sc.AnnData, markers: dict) -> dict[str, str]:
     """
     Rule-based annotation: score each cluster against each candidate cell
