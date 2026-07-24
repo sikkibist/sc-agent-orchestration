@@ -1,0 +1,63 @@
+<svg width="680" height="500" viewBox="0 0 680 500" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>Confidence-weighted tie-break orchestrator architecture</title>
+<style>
+  .box { stroke-width: 1.5; rx: 8; }
+  .title { font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 600; fill: #1f2430; }
+  .sub { font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 11px; fill: #4a5160; }
+  .lbl { font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 11px; fill: #4a5160; font-style: italic; }
+  .gray { fill: #eef0f2; stroke: #9aa1ab; }
+  .teal { fill: #d6f0ec; stroke: #2a9d8f; }
+  .purple { fill: #e9e2fb; stroke: #7c5cbf; }
+  .indigo { fill: #dfe3fd; stroke: #4f46e5; }
+  .arrow { stroke: #6c757d; stroke-width: 1.5; fill: none; }
+</style>
+<defs>
+  <marker id="arrow3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="#6c757d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+</defs>
+
+<rect class="box teal" x="60" y="24" width="260" height="70"/>
+<text class="title" x="190" y="50" text-anchor="middle">Classical specialist</text>
+<text class="sub" x="190" y="68" text-anchor="middle">Label + confidence = margin between</text>
+<text class="sub" x="190" y="83" text-anchor="middle">top and runner-up marker score</text>
+
+<rect class="box purple" x="360" y="24" width="260" height="70"/>
+<text class="title" x="490" y="50" text-anchor="middle">LLM specialist</text>
+<text class="sub" x="490" y="68" text-anchor="middle">Label + self-reported 0-100</text>
+<text class="sub" x="490" y="83" text-anchor="middle">confidence, same call</text>
+
+<path d="M190 94 L190 118 L340 118 L340 142" class="arrow" marker-end="url(#arrow3)"/>
+<path d="M490 94 L490 118 L340 118 L340 142" class="arrow" marker-end="url(#arrow3)"/>
+<text class="lbl" x="340" y="112" text-anchor="middle">ONE LLM call total — no second arbitration round</text>
+
+<rect class="box gray" x="200" y="142" width="280" height="56"/>
+<text class="title" x="340" y="166" text-anchor="middle">Reconciler</text>
+<text class="sub" x="340" y="184" text-anchor="middle">Compares confidence signals directly</text>
+
+<path d="M340 198 L340 222 L150 222 L150 246" class="arrow" marker-end="url(#arrow3)"/>
+<path d="M340 198 L340 222 L530 222 L530 246" class="arrow" marker-end="url(#arrow3)"/>
+
+<rect class="box teal" x="30" y="246" width="240" height="76"/>
+<text class="title" x="150" y="268" text-anchor="middle">Classical wins</text>
+<text class="sub" x="150" y="285" text-anchor="middle">Default: agreement, ties,</text>
+<text class="sub" x="150" y="299" text-anchor="middle">both confident, both unsure,</text>
+<text class="sub" x="150" y="313" text-anchor="middle">or LLM label invalid</text>
+
+<rect class="box indigo" x="410" y="246" width="240" height="76"/>
+<text class="title" x="530" y="268" text-anchor="middle">LLM wins</text>
+<text class="sub" x="530" y="285" text-anchor="middle">Only if: classical below-median</text>
+<text class="sub" x="530" y="299" text-anchor="middle">confidence AND LLM &#8805;70 AND</text>
+<text class="sub" x="530" y="313" text-anchor="middle">label is a genuine candidate</text>
+
+<path d="M150 322 L150 350 L340 350 L340 374" class="arrow" marker-end="url(#arrow3)"/>
+<path d="M530 322 L530 350 L340 350 L340 374" class="arrow" marker-end="url(#arrow3)"/>
+
+<rect class="box gray" x="205" y="374" width="270" height="56"/>
+<text class="title" x="340" y="398" text-anchor="middle">Final output</text>
+<text class="sub" x="340" y="416" text-anchor="middle">Annotated clusters, ready to score</text>
+
+<text class="sub" x="340" y="452" text-anchor="middle" font-style="italic">Empirical finding: classical's margin-based confidence is well</text>
+<text class="sub" x="340" y="466" text-anchor="middle" font-style="italic">calibrated (its low-confidence clusters are consistently the hard</text>
+<text class="sub" x="340" y="480" text-anchor="middle" font-style="italic">ones); the LLM's self-reported confidence is not equally trustworthy.</text>
+</svg>
