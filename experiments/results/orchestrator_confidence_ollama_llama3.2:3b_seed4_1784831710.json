@@ -1,0 +1,27 @@
+{
+  "condition": "orchestrator_confidence_ollama_llama3.2:3b",
+  "dataset": "pbmc68k_reduced",
+  "seed": 4,
+  "task_metrics": {
+    "accuracy": 0.5014285714285714,
+    "macro_f1": 0.24103768574333634,
+    "weighted_f1": 0.4513391638753752,
+    "ari": 0.524139741072485,
+    "nmi": 0.6358221718492755
+  },
+  "orchestration_log": {
+    "iterations_used": 1,
+    "max_iterations": 1,
+    "escalated": true,
+    "converged": true,
+    "per_iteration_correct": []
+  },
+  "cost_log": {
+    "input_tokens": 650,
+    "output_tokens": 135,
+    "wall_clock_seconds": 72.4119873046875,
+    "estimated_cost_usd": null
+  },
+  "timestamp_utc": "2026-07-23T18:35:10.351911+00:00",
+  "notes": "agree=2, llm_won=1, classical_won=5, invalid_llm_high_conf=0"
+}

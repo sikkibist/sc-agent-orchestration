@@ -1,0 +1,65 @@
+<svg width="680" height="600" viewBox="0 0 680 600" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>Arbitration orchestrator architecture</title>
+<style>
+  .box { stroke-width: 1.5; rx: 8; }
+  .title { font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 600; fill: #1f2430; }
+  .sub { font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 11px; fill: #4a5160; }
+  .lbl { font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 11px; fill: #4a5160; font-style: italic; }
+  .gray { fill: #eef0f2; stroke: #9aa1ab; }
+  .teal { fill: #d6f0ec; stroke: #2a9d8f; }
+  .purple { fill: #e9e2fb; stroke: #7c5cbf; }
+  .coral { fill: #fbe3dc; stroke: #e76f51; }
+  .arrow { stroke: #6c757d; stroke-width: 1.5; fill: none; }
+</style>
+<defs>
+  <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="#6c757d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+</defs>
+
+<rect class="box gray" x="200" y="40" width="280" height="56"/>
+<text class="title" x="340" y="64" text-anchor="middle">Orchestrator</text>
+<text class="sub" x="340" y="82" text-anchor="middle">Dispatches clusters to specialists</text>
+
+<path d="M340 96 L340 124 L205 124 L205 152" class="arrow" marker-end="url(#arrow2)"/>
+<path d="M340 96 L340 124 L465 124 L465 152" class="arrow" marker-end="url(#arrow2)"/>
+
+<rect class="box teal" x="90" y="152" width="230" height="56"/>
+<text class="title" x="205" y="176" text-anchor="middle">Classical specialist</text>
+<text class="sub" x="205" y="194" text-anchor="middle">Deterministic marker scoring</text>
+
+<rect class="box purple" x="350" y="152" width="230" height="56"/>
+<text class="title" x="465" y="176" text-anchor="middle">LLM specialist</text>
+<text class="sub" x="465" y="194" text-anchor="middle">Semantic reasoning on markers</text>
+
+<path d="M205 208 L205 232 L340 232 L340 264" class="arrow" marker-end="url(#arrow2)"/>
+<path d="M465 208 L465 232 L340 232 L340 264" class="arrow" marker-end="url(#arrow2)"/>
+
+<rect class="box gray" x="220" y="264" width="240" height="56"/>
+<text class="title" x="340" y="288" text-anchor="middle">Evaluator</text>
+<text class="sub" x="340" y="306" text-anchor="middle">Checks label agreement</text>
+
+<path d="M340 320 L340 344 L230 344 L230 376" class="arrow" marker-end="url(#arrow2)"/>
+<path d="M340 320 L340 344 L500 344 L500 376" class="arrow" marker-end="url(#arrow2)"/>
+<text class="lbl" x="270" y="336" text-anchor="middle">agree</text>
+<text class="lbl" x="415" y="336" text-anchor="middle">disagree</text>
+
+<rect class="box teal" x="120" y="376" width="220" height="56"/>
+<text class="title" x="230" y="400" text-anchor="middle">Labels agree</text>
+<text class="sub" x="230" y="418" text-anchor="middle">Both agree, high confidence</text>
+
+<rect class="box coral" x="370" y="376" width="260" height="56"/>
+<text class="title" x="500" y="400" text-anchor="middle">Disagreement</text>
+<text class="sub" x="500" y="418" text-anchor="middle">LLM retries once, else classical</text>
+
+<path d="M230 432 L230 456 L340 456 L340 488" class="arrow" marker-end="url(#arrow2)"/>
+<path d="M500 432 L500 456 L340 456 L340 488" class="arrow" marker-end="url(#arrow2)"/>
+
+<rect class="box gray" x="205" y="488" width="270" height="56"/>
+<text class="title" x="340" y="512" text-anchor="middle">Final output</text>
+<text class="sub" x="340" y="530" text-anchor="middle">Annotated clusters, ready to score</text>
+
+<text class="sub" x="340" y="558" text-anchor="middle" font-style="italic">Validity gate (added after debugging): a disagreement's final label is</text>
+<text class="sub" x="340" y="572" text-anchor="middle" font-style="italic">only accepted if it is a real candidate label, regardless of which</text>
+<text class="sub" x="340" y="586" text-anchor="middle" font-style="italic">offered option it matched.</text>
+</svg>

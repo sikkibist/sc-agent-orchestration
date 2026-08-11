@@ -1,0 +1,27 @@
+{
+  "condition": "baseline2_single_llm_ollama_llama3.2:3b_semantic_normalized",
+  "dataset": "pbmc68k_reduced",
+  "seed": 2,
+  "task_metrics": {
+    "accuracy": 0.015714285714285715,
+    "macro_f1": 0.013481224048083468,
+    "weighted_f1": 0.015901020795947924,
+    "ari": 0.5023068755067226,
+    "nmi": 0.6225816819647145
+  },
+  "orchestration_log": {
+    "iterations_used": 1,
+    "max_iterations": 1,
+    "escalated": false,
+    "converged": true,
+    "per_iteration_correct": []
+  },
+  "cost_log": {
+    "input_tokens": 707,
+    "output_tokens": 65,
+    "wall_clock_seconds": 50.89671063423157,
+    "estimated_cost_usd": null
+  },
+  "timestamp_utc": "2026-07-21T04:53:33.314485+00:00",
+  "notes": "same run, scored with semantic label normalization applied (0 raw parse errors)"
+}
